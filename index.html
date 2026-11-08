@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Minesweeper QVGA</title>
+  <!-- Strict QVGA Viewport for Cloud Phone / Nokia 220 4G -->
+  <meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    /* Reset & Base Constraints */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 240px;
+      height: 320px;
+      max-width: 240px;
+      max-height: 320px;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      background: #c0c0c0;
+      color: #000;
+      font-family: monospace, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 320px;
+    }
+
+    /* Main Container (Fits Header & Board in 296px) */
+    #app-container {
+      width: 240px;
+      height: 296px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-evenly;
+      padding: 2px 0;
+    }
+
+    /* Header Status Bar (40px high, beveled border) */
+    #header-bar {
+      width: 222px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px;
+      background: #c0c0c0;
+      border: 2px solid;
+      border-color: #808080 #ffffff #ffffff #808080;
+    }
+
+    /* 3-Digit Red Digital Counter (Mine & Timer Badges) */
+    .digital-counter {
+      width: 48px;
+      height: 28px;
+      background: #000000;
+      color: #ff0000;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 24px;
+      letter-spacing: 1px;
+      text-align: right;
+      padding: 0 4px;
+      border: 2px solid;
+      border-color: #808080 #ffffff #ffffff #808080;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      text-shadow: 0 0 2px #ff0000;
+    }
+
+    /* Center Face Status Button */
+    #face-btn {
+      width: 30px;
+      height: 30px;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      background: #c0c0c0;
+      border: 2px solid;
+      border-color: #ffffff #808080 #808080 #ffffff;
+      padding: 0;
+    }
+
+    #face-btn:active, #face-btn.pressed {
+      border-color: #808080 #ffffff #ffffff #808080;
+    }
+
+    /* Game Board (216x216px centered + 3px borders = 222x222px) */
+    #board {
+      width: 222px;
+      height: 222px;
+      border: 3px solid;
+      border-color: #808080 #ffffff #ffffff #808080;
+      display: grid;
+      grid-template-columns: repeat(9, 24px);
+      grid-template-rows: repeat(9, 24px);
+      background: #808080;
+      gap: 0;
+    }
+
+    /* Individual 24x24px Cell */
+    .cell {
+      width: 24px;
+      height: 24px;
+      position: relative;
+      background: #c0c0c0;
+      font-family: "Lucida Console", "Courier New", monospace, sans-serif;
+      font-size: 14px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      line-height: 1;
+      overflow: hidden;
+    }
+
+    /* Unrevealed 3D Beveled Cell */
+    .cell.unrevealed {
+      border: 2px solid;
+      border-color: #ffffff #808080 #808080 #ffffff;
+      background: #c0c0c0;
+    }
+
+    /* Depressed State when Clicking/Chording */
+    .cell.depressed {
+      border: 1px solid #7b7b7b;
+      background: #b5b5b5;
+    }
+
+    /* Revealed Flat Cell */
+    .cell.revealed {
+      border: 1px solid #7b7b7b;
+      background: #c0c0c0;
+    }
+
+    /* Detonated Mine Cell */
+    .cell.exploded {
+      background: #ff0000 !important;
+      border: 1px solid #800000;
+    }
+
+    /* Active Cursor Focus: High-visibility 2px yellow/cyan animated outline */
+    .cell.focused::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      border: 2px solid #ffff00;
+      z-index: 10;
+      pointer-events: none;
+      animation: cursorGlow 0.6s ease-in-out infinite alternate;
+    }
+
+    @keyframes cursorGlow {
+      0% {
+        border-color: #ffff00;
+        box-shadow: inset 0 0 2px #ffff00;
+      }
+      100% {
+        border-color: #00ffff;
+        box-shadow: inset 0 0 2px #00ffff;
+      }
+    }
+
+    /* Number Colors (Standard Windows 95 Palette) */
+    .num-1 { color: #0000ff; }
+    .num-2 { color: #008000; }
+    .num-3 { color: #ff0000; }
+    .num-4 { color: #000080; }
+    .num-5 { color: #800000; }
+    .num-6 { color: #008080; }
+    .num-7 { color: #000000; }
+    .num-8 { color: #808080; }
+
+    .icon {
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    /* Bottom Softkey Guide Bar (24px) */
+    #softkey-bar {
+      width: 240px;
+      height: 24px;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      border-top: 1px solid #404040;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
+      font-size: 10px;
+      font-family: monospace, sans-serif;
+      font-weight: bold;
+      line-height: 24px;
+      letter-spacing: -0.2px;
+    }
+
+    .softkey {
+      padding: 0 2px;
+      cursor: pointer;
+    }
+    .softkey:active {
+      color: #00ffff;
+    }
+    .softkey.left { text-align: left; }
+    .softkey.center { text-align: center; color: #ffffff; }
+    .softkey.right { text-align: right; }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- Retro Win95-Style Header Status Bar (40px high) -->
+    <div id="header-bar">
+      <div id="mine-counter" class="digital-counter" aria-label="Mine counter">010</div>
+      <button id="face-btn" aria-label="Face status">🙂</button>
+      <div id="time-counter" class="digital-counter" aria-label="Timer">000</div>
+    </div>
+
+    <!-- 9x9 Game Board (216x216px centered inside border) -->
+    <div id="board" role="grid" aria-label="Minesweeper grid"></div>
+  </div>
+
+  <!-- Bottom Softkey Guide Bar (24px) -->
+  <div id="softkey-bar">
+    <div class="softkey left" id="softkey-flag">Flag (* / 5)</div>
+    <div class="softkey center" id="softkey-dig">Dig (Enter)</div>
+    <div class="softkey right" id="softkey-restart">Restart (0)</div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // --- Constants ---
+      const ROWS = 9;
+      const COLS = 9;
+      const TOTAL_MINES = 10;
+      const TOTAL_CELLS = ROWS * COLS;
+      const SAFE_TILES_COUNT = TOTAL_CELLS - TOTAL_MINES; // 71 tiles to win
+
+      // --- Game State ---
+      let boardData = []; // 2D array: { r, c, mine, revealed, flagged, count }
+      let cellElements = []; // 2D array of DOM elements
+      let cursorRow = 4; // Start centered on 9x9 board
+      let cursorCol = 4;
+      let firstClick = true;
+      let gameOver = false;
+      let gameWon = false;
+      let revealedCount = 0;
+      let flaggedCount = 0;
+      let timerSeconds = 0;
+      let timerInterval = null;
+
+      // --- DOM Elements ---
+      const boardEl = document.getElementById('board');
+      const mineCounterEl = document.getElementById('mine-counter');
+      const timeCounterEl = document.getElementById('time-counter');
+      const faceBtnEl = document.getElementById('face-btn');
+      const softkeyFlag = document.getElementById('softkey-flag');
+      const softkeyDig = document.getElementById('softkey-dig');
+      const softkeyRestart = document.getElementById('softkey-restart');
+
+      // --- 3-Digit Digital Counter Formatter ---
+      function format3Digits(val) {
+        if (val < 0) {
+          const abs = Math.min(Math.abs(val), 99);
+          return '-' + String(abs).padStart(2, '0');
+        }
+        const clamped = Math.min(Math.max(val, 0), 999);
+        return String(clamped).padStart(3, '0');
+      }
+
+      function updateMineDisplay() {
+        const remaining = TOTAL_MINES - flaggedCount;
+        mineCounterEl.textContent = format3Digits(remaining);
+      }
+
+      function updateTimerDisplay() {
+        timeCounterEl.textContent = format3Digits(timerSeconds);
+      }
+
+      function startTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerSeconds = 0;
+        updateTimerDisplay();
+        timerInterval = setInterval(function () {
+          if (!gameOver && !gameWon) {
+            timerSeconds = Math.min(timerSeconds + 1, 999);
+            updateTimerDisplay();
+          }
+        }, 1000);
+      }
+
+      function stopTimer() {
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+      }
+
+      function setFace(emoji) {
+        faceBtnEl.textContent = emoji;
+      }
+
+      // --- Initialize Game ---
+      function initGame() {
+        stopTimer();
+        gameOver = false;
+        gameWon = false;
+        firstClick = true;
+        revealedCount = 0;
+        flaggedCount = 0;
+        timerSeconds = 0;
+        setFace('🙂');
+        updateMineDisplay();
+        updateTimerDisplay();
+
+        boardData = [];
+        for (let r = 0; r < ROWS; r++) {
+          const row = [];
+          for (let c = 0; c < COLS; c++) {
+            row.push({
+              r: r,
+              c: c,
+              mine: false,
+              revealed: false,
+              flagged: false,
+              count: 0
+            });
+          }
+          boardData.push(row);
+        }
+
+        renderAllCells();
+        updateCursorFocus();
+      }
+
+      // --- Setup DOM Grid ---
+      function setupGridDOM() {
+        boardEl.innerHTML = '';
+        cellElements = [];
+        for (let r = 0; r < ROWS; r++) {
+          const rowEls = [];
+          for (let c = 0; c < COLS; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell unrevealed';
+
+            // Touch and mouse events for versatility
+            cell.addEventListener('mousedown', function (e) {
+              if (gameOver || gameWon) return;
+              if (e.button === 0) {
+                setFace('😮');
+              }
+            });
+
+            cell.addEventListener('click', function () {
+              setCursor(r, c);
+              handleDig();
+            });
+
+            cell.addEventListener('contextmenu', function (e) {
+              e.preventDefault();
+              setCursor(r, c);
+              handleFlagToggle();
+            });
+
+            boardEl.appendChild(cell);
+            rowEls.push(cell);
+          }
+          cellElements.push(rowEls);
+        }
+      }
+
+      // --- Board Generation (First-Click Safe) ---
+      // The first revealed tile and all its immediate 8 neighbors must never contain a mine.
+      function plantMines(safeRow, safeCol) {
+        const candidates = [];
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const isSafeZone = Math.abs(r - safeRow) <= 1 && Math.abs(c - safeCol) <= 1;
+            if (!isSafeZone) {
+              candidates.push({ r: r, c: c });
+            }
+          }
+        }
+
+        // Shuffle candidate positions (Fisher-Yates)
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const temp = candidates[i];
+          candidates[i] = candidates[j];
+          candidates[j] = temp;
+        }
+
+        // Plant 10 mines
+        for (let m = 0; m < TOTAL_MINES; m++) {
+          const pos = candidates[m];
+          boardData[pos.r][pos.c].mine = true;
+        }
+
+        // Calculate neighbor numbers
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (!boardData[r][c].mine) {
+              let count = 0;
+              for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                  const nr = r + dr;
+                  const nc = c + dc;
+                  if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+                    if (boardData[nr][nc].mine) count++;
+                  }
+                }
+              }
+              boardData[r][c].count = count;
+            }
+          }
+        }
+      }
+
+      // --- D-Pad Cursor Navigation ---
+      function setCursor(r, c) {
+        cursorRow = Math.max(0, Math.min(ROWS - 1, r));
+        cursorCol = Math.max(0, Math.min(COLS - 1, c));
+        updateCursorFocus();
+      }
+
+      function updateCursorFocus() {
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const el = cellElements[r][c];
+            if (r === cursorRow && c === cursorCol) {
+              el.classList.add('focused');
+            } else {
+              el.classList.remove('focused');
+            }
+          }
+        }
+      }
+
+      // --- Cell Render Helper ---
+      function renderCell(r, c) {
+        const data = boardData[r][c];
+        const el = cellElements[r][c];
+        el.className = 'cell';
+
+        if (r === cursorRow && c === cursorCol) {
+          el.classList.add('focused');
+        }
+
+        if (data.revealed) {
+          el.classList.add('revealed');
+          if (data.mine) {
+            el.innerHTML = '<span class="icon">💣</span>';
+          } else if (data.count > 0) {
+            el.textContent = data.count;
+            el.classList.add('num-' + data.count);
+          } else {
+            el.textContent = '';
+          }
+        } else {
+          el.classList.add('unrevealed');
+          if (data.flagged) {
+            el.innerHTML = '<span class="icon">🚩</span>';
+          } else {
+            el.textContent = '';
+          }
+        }
+      }
+
+      function renderAllCells() {
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            renderCell(r, c);
+          }
+        }
+      }
+
+      // --- Dig / Reveal Mechanics ---
+      function reveal(r, c) {
+        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+        const cell = boardData[r][c];
+        if (cell.revealed || cell.flagged) return;
+
+        // Generate mines safely on first click
+        if (firstClick) {
+          firstClick = false;
+          plantMines(r, c);
+          startTimer();
+        }
+
+        // Stepped on a mine -> Game Over
+        if (cell.mine) {
+          triggerGameOver(r, c);
+          return;
+        }
+
+        // Safe cell reveal
+        cell.revealed = true;
+        revealedCount++;
+        renderCell(r, c);
+
+        // Cascade zero-clearing (BFS queue)
+        if (cell.count === 0) {
+          const queue = [{ r: r, c: c }];
+          while (queue.length > 0) {
+            const curr = queue.shift();
+            for (let dr = -1; dr <= 1; dr++) {
+              for (let dc = -1; dc <= 1; dc++) {
+                const nr = curr.r + dr;
+                const nc = curr.c + dc;
+                if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+                  const neighbor = boardData[nr][nc];
+                  if (!neighbor.revealed && !neighbor.flagged && !neighbor.mine) {
+                    neighbor.revealed = true;
+                    revealedCount++;
+                    renderCell(nr, nc);
+                    if (neighbor.count === 0) {
+                      queue.push({ r: nr, c: nc });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Win detection
+        if (revealedCount >= SAFE_TILES_COUNT) {
+          triggerVictory();
+        }
+      }
+
+      // --- Flag Toggle Action ('5' or '*') ---
+      function handleFlagToggle() {
+        if (gameOver || gameWon) return;
+        const cell = boardData[cursorRow][cursorCol];
+        if (cell.revealed) return;
+
+        cell.flagged = !cell.flagged;
+        if (cell.flagged) {
+          flaggedCount++;
+        } else {
+          flaggedCount--;
+        }
+
+        updateMineDisplay();
+        renderCell(cursorRow, cursorCol);
+      }
+
+      // --- Quick-Chord Action ('#') ---
+      function handleQuickChord() {
+        if (gameOver || gameWon) return;
+        const cell = boardData[cursorRow][cursorCol];
+        if (!cell.revealed || cell.count === 0) return;
+
+        let flagsAround = 0;
+        const neighbors = [];
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = cursorRow + dr;
+            const nc = cursorCol + dc;
+            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+              const nCell = boardData[nr][nc];
+              neighbors.push(nCell);
+              if (nCell.flagged) flagsAround++;
+            }
+          }
+        }
+
+        // Reveal unflagged neighbors if flags match number
+        if (flagsAround === cell.count) {
+          for (let i = 0; i < neighbors.length; i++) {
+            const n = neighbors[i];
+            if (!n.revealed && !n.flagged) {
+              reveal(n.r, n.c);
+              if (gameOver) break;
+            }
+          }
+        } else {
+          // Brief depressed flash for feedback
+          neighbors.forEach(function (n) {
+            if (!n.revealed && !n.flagged) {
+              cellElements[n.r][n.c].classList.add('depressed');
+            }
+          });
+          setTimeout(function () {
+            neighbors.forEach(function (n) {
+              cellElements[n.r][n.c].classList.remove('depressed');
+            });
+          }, 120);
+        }
+      }
+
+      // --- Dig Focused Cell ---
+      function handleDig() {
+        if (gameOver || gameWon) return;
+        const cell = boardData[cursorRow][cursorCol];
+
+        if (cell.revealed) {
+          if (cell.count > 0) {
+            handleQuickChord();
+          }
+          return;
+        }
+
+        if (cell.flagged) return;
+
+        reveal(cursorRow, cursorCol);
+        if (!gameOver && !gameWon) {
+          setFace('🙂');
+        }
+      }
+
+      // --- Victory Trigger ---
+      function triggerVictory() {
+        gameWon = true;
+        stopTimer();
+        setFace('😎');
+
+        // Reveal all flags and set mine counter to 000
+        flaggedCount = TOTAL_MINES;
+        updateMineDisplay();
+
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const cell = boardData[r][c];
+            if (cell.mine && !cell.flagged) {
+              cell.flagged = true;
+              renderCell(r, c);
+            }
+          }
+        }
+      }
+
+      // --- Game Over Trigger ---
+      function triggerGameOver(explodedR, explodedC) {
+        gameOver = true;
+        stopTimer();
+        setFace('😵');
+
+        // Reveal all mines & highlight triggered bomb
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const cell = boardData[r][c];
+            const el = cellElements[r][c];
+
+            if (r === explodedR && c === explodedC) {
+              cell.revealed = true;
+              el.className = 'cell revealed exploded';
+              if (r === cursorRow && c === cursorCol) el.classList.add('focused');
+              el.innerHTML = '<span class="icon">💥</span>';
+            } else if (cell.mine) {
+              if (!cell.flagged) {
+                cell.revealed = true;
+                el.className = 'cell revealed';
+                if (r === cursorRow && c === cursorCol) el.classList.add('focused');
+                el.innerHTML = '<span class="icon">💣</span>';
+              }
+            } else if (cell.flagged) {
+              // Crossed-out false flag
+              el.className = 'cell revealed';
+              if (r === cursorRow && c === cursorCol) el.classList.add('focused');
+              el.innerHTML = '<span class="icon" style="color:#ff0000;">❌</span>';
+            }
+          }
+        }
+      }
+
+      // --- Keypad & D-Pad Keyboard Handler ---
+      window.addEventListener('keydown', function (e) {
+        const key = e.key;
+        const code = e.keyCode || e.which;
+
+        // D-Pad Up
+        if (key === 'ArrowUp' || key === 'Up' || code === 38) {
+          e.preventDefault();
+          setCursor(cursorRow - 1, cursorCol);
+          return;
+        }
+
+        // D-Pad Down
+        if (key === 'ArrowDown' || key === 'Down' || code === 40) {
+          e.preventDefault();
+          setCursor(cursorRow + 1, cursorCol);
+          return;
+        }
+
+        // D-Pad Left
+        if (key === 'ArrowLeft' || key === 'Left' || code === 37) {
+          e.preventDefault();
+          setCursor(cursorRow, cursorCol - 1);
+          return;
+        }
+
+        // D-Pad Right
+        if (key === 'ArrowRight' || key === 'Right' || code === 39) {
+          e.preventDefault();
+          setCursor(cursorRow, cursorCol + 1);
+          return;
+        }
+
+        // Enter: Dig / Reveal (Face changes to 😮 while pressing)
+        if (key === 'Enter' || key === 'Select' || code === 13) {
+          e.preventDefault();
+          if (!gameOver && !gameWon) {
+            setFace('😮');
+          }
+          return;
+        }
+
+        // '5' or '*' or SoftLeft: Toggle Flag
+        if (key === '5' || code === 53 || code === 101 ||
+            key === '*' || code === 170 || code === 106 || (code === 56 && e.shiftKey) ||
+            key === 'SoftLeft' || code === 112) {
+          e.preventDefault();
+          handleFlagToggle();
+          return;
+        }
+
+        // '0' or SoftRight: Reset / Start new game
+        if (key === '0' || code === 48 || code === 96 ||
+            key === 'SoftRight' || code === 113) {
+          e.preventDefault();
+          faceBtnEl.classList.add('pressed');
+          initGame();
+          setTimeout(function () { faceBtnEl.classList.remove('pressed'); }, 120);
+          return;
+        }
+
+        // '#' or Hash: Quick-chord
+        if (key === '#' || key === 'Hash' || code === 35 || (code === 51 && e.shiftKey)) {
+          e.preventDefault();
+          handleQuickChord();
+          return;
+        }
+
+        // Crucial: Call e.preventDefault() on other number keys to prevent browser default behaviors
+        if ((code >= 48 && code <= 57) || (code >= 96 && code <= 105)) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
+      window.addEventListener('keyup', function (e) {
+        const key = e.key;
+        const code = e.keyCode || e.which;
+
+        if (key === 'Enter' || key === 'Select' || code === 13) {
+          e.preventDefault();
+          handleDig();
+          if (!gameOver && !gameWon) {
+            setFace('🙂');
+          }
+        }
+      }, { passive: false });
+
+      // Window mouseup fallback
+      window.addEventListener('mouseup', function () {
+        if (!gameOver && !gameWon) {
+          setFace('🙂');
+        }
+      });
+
+      // --- Click Listeners for Face Button & Softkey Bar ---
+      faceBtnEl.addEventListener('click', function () {
+        initGame();
+      });
+
+      softkeyFlag.addEventListener('click', function () {
+        handleFlagToggle();
+      });
+
+      softkeyDig.addEventListener('click', function () {
+        handleDig();
+      });
+
+      softkeyRestart.addEventListener('click', function () {
+        initGame();
+      });
+
+      // --- Bootstrap Application ---
+      setupGridDOM();
+      initGame();
+    })();
+  </script>
+</body>
+</html>
